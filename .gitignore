@@ -1,0 +1,23 @@
+# Ignore arquivos temporários
+*.pyc
+__pycache__/
+.ipynb_checkpoints/
+*.log
+
+# Ignore arquivos de sistema
+.DS_Store
+Thumbs.db
+
+# Ignore pastas de execução de container (se houver)
+.env
+.envrc
+.vscode/
+venv/
+.env/
+
+# Ignore arquivos de saída ou exportação temporária
+*.zip
+*.tar.gz
+
+# Ignore arquivos do Jupyter kernel
+*.nbconvert.ipynb

@@ -1,0 +1,24 @@
+    volumes:
+      - ./workspace:/workspace
+      - ./dados:/data/rl
+version: '3.8'
+
+services:
+  rl-jupyter:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rl_jupyter
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./workspace:/workspace         # Persistência dos notebooks
+      - /mnt/c/rl:/data/rl             # Montagem correta da pasta do Windows (via WSL2)
+    working_dir: /workspace
+    restart: unless-stopped
+    networks:
+      - rl_network
+
+networks:
+  rl_network:
+    driver: bridge

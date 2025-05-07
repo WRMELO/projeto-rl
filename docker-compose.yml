@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  rl-jupyter:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rl_jupyter
+    ports:
+      - "8888:8888"
+    volumes:
+      - .:/project
+
+    working_dir: /workspace
+    restart: unless-stopped
+    networks:
+      - rl_network
+
+networks:
+  rl_network:
+    driver: bridge
