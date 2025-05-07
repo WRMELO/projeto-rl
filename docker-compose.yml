@@ -10,11 +10,13 @@ services:
       - "8888:8888"
     volumes:
       - .:/project
-
     working_dir: /workspace
     restart: unless-stopped
     networks:
       - rl_network
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
 
 networks:
   rl_network:

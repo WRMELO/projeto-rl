@@ -258,17 +258,21 @@ Indicadores adicionais como `MACD`, `Bandas de Bollinger`, `EMA` ou `OBV` foram 
 
 ### 5.3 Definição do Espaço de Estados para RL
 
-O próximo passo é estruturar aquilo que será efetivamente passado ao agente como entrada em cada passo de tempo: o **vetor de estado**.
+Com os indicadores técnicos já calculados e normalizados para os três ativos selecionados, o próximo passo é estruturar o vetor de estado que será utilizado como entrada pelo agente de Reinforcement Learning.
 
-Cada estado será formado por:
+Diferentemente de abordagens supervisionadas tradicionais, em que as variáveis independentes (features) se referem unicamente ao ambiente, em RL é necessário incorporar também o **estado interno do agente** — ou seja, seu portfólio atual e recursos disponíveis.
 
-- Os indicadores técnicos calculados e normalizados para os três ativos;
-- As **posições atuais do agente** em cada um dos ativos (`0` = fora do ativo, `1` = posição comprada);
-- O **saldo de caixa disponível**, expresso em reais, que será utilizado para avaliar a viabilidade de novas compras.
+Dessa forma, o vetor de estado será composto por duas partes:
 
-O saldo de caixa é uma parte fundamental da simulação, pois permite ao agente tomar decisões realistas sobre alocação de recursos. Ao contrário de um ambiente hipotético com recursos infinitos, aqui o agente precisará respeitar seu orçamento, assim como faria um investidor real.
+- Um conjunto de variáveis de mercado, extraídas e normalizadas para cada ativo (`Close_Norm`, `SMA5_Norm`, `Return_Z`, `Volume_Log`, etc.);
+- Um conjunto de variáveis internas ao agente, contendo:
+  - As **posições atuais em cada ativo**, codificadas como 0 (fora da posição) ou 1 (posição comprada);
+  - O **saldo de caixa disponível**, em reais, que será atualizado a cada passo de tempo.
 
-Essa estrutura garante que, a cada novo dia, o agente tenha uma visão consolidada do cenário atual — tanto externo (condições de mercado) quanto interno (seu próprio portfólio).
+Essa estrutura garante que o agente, ao observar o ambiente, tenha uma visão completa tanto das **condições externas** (preços, tendências e liquidez dos ativos) quanto do seu **estado interno** (disponibilidade financeira e alocação atual), condição fundamental para a simulação realista de decisões de investimento.
+
+A construção do vetor de portfólio será feita utilizando a mesma linha temporal dos vetores de mercado, garantindo a integração completa das informações necessárias à simulação. Essa etapa será incorporada à lógica de inicialização da carteira e simulação de decisões, apresentada no item seguinte.
+
 
 ---
 
@@ -319,13 +323,113 @@ Essa separação garante que o agente aprenda apenas com o passado, e que sua pe
 
 ---
 
+## 6. Implementação do Agente de Reinforcement Learning (RL)
 
-## 6. Implementação do Agente de RL
+A implementação do agente de RL é o coração do projeto. É neste ponto que o conhecimento teórico acumulado — desde a definição do problema até a modelagem dos dados — se transforma em uma entidade computacional capaz de interagir com o ambiente financeiro de forma autônoma e inteligente.
 
-* 6.1 Introdução ao Deep Q-Network (DQN)
-* 6.2 Estrutura da Rede Neural
-* 6.3 Definição do Ambiente de Simulação
-* 6.4 Treinamento Inicial do Agente
+Nesta seção, detalharemos a construção do agente utilizando a técnica de Deep Q-Network (DQN), abordando sua estrutura de rede, integração com o ambiente de simulação, lógica de aprendizado e preparação para o treinamento inicial.
+
+### 6.1 Introdução ao Deep Q-Network (DQN)
+
+O algoritmo Deep Q-Network (DQN) é uma extensão do método tradicional de Q-Learning, projetado para operar em ambientes com grandes espaços de estados, onde tabelas Q se tornam inviáveis. Ele substitui a tabela por uma rede neural profunda que aproxima a função Q, permitindo generalizações e aprendizados mais eficientes.
+
+Em termos práticos, o DQN busca estimar a função de valor ação-estado:
+
+$$
+Q(s, a) \approx \mathbb{E}[R_t \mid s_t = s, a_t = a]
+$$
+
+Onde:
+
+- $s$ representa o **estado atual** do ambiente (informações de mercado e da carteira do agente);
+- $a$ representa a **ação executada** pelo agente (compra, venda ou manutenção por ativo);
+- $R_t$ é o **retorno acumulado futuro**, resultado da execução da ação $a$ no estado $s$;
+- $s'$ é o **próximo estado** do ambiente, resultante da ação tomada;
+- `done` é um **indicador booleano** que sinaliza se o episódio terminou (por exemplo, quando se atinge o final da série histórica).
+
+A função Q é atualizada com base na Equação de Bellman:
+
+$$
+\text{Loss} = \left[ Q(s_t, a_t) - \left( r_t + \gamma \cdot \max_a Q(s_{t+1}, a) \right) \right]^2
+$$
+
+Para garantir estabilidade no aprendizado, o DQN adota dois mecanismos fundamentais:
+
+- **Replay Buffer**: armazena transições $(s, a, r, s', done)$, que são amostradas aleatoriamente para evitar correlações temporais;
+- **Target Network**: uma cópia da rede Q usada apenas para calcular os alvos de treinamento, atualizada periodicamente com os pesos da rede principal.
+
+---
+
+### 6.2 Estrutura da Rede Neural
+
+A arquitetura adotada para a rede DQN neste projeto foi desenhada para balancear expressividade e eficiência computacional. Como entrada, a rede recebe um vetor com:
+
+- Indicadores técnicos dos ativos (normalizados);
+- Posições atuais em cada ativo;
+- Saldo de caixa disponível.
+
+A estrutura da rede é composta por:
+
+- **Camada de Entrada**: dimensão igual ao vetor de estado;
+- **Camadas Ocultas**:
+  - `Dense(128)` com função de ativação ReLU;
+  - `Dense(64)` com função de ativação ReLU;
+- **Camada de Saída**:
+  - `Dense(n_actions)` com ativação linear, retornando os valores estimados $Q(s, a)$ para cada ação.
+
+A rede principal é treinada com erro quadrático médio (MSE) entre os valores previstos e os alvos calculados com a rede-alvo, conforme a equação de Bellman.
+
+---
+
+### 6.3 Definição do Ambiente de Simulação
+
+O ambiente de simulação é responsável por modelar o mercado financeiro e a carteira do agente. Ele foi estruturado para seguir a interface `gym.Env` da OpenAI, com os seguintes métodos principais:
+
+- `reset()`: reinicializa o ambiente com R$100.000 em caixa (normalizado como 1.0), posições zeradas e retorna o estado inicial;
+- `step(action)`: executa a ação informada, atualiza as posições e o caixa, calcula a recompensa e retorna:
+  - o novo estado;
+  - a recompensa recebida;
+  - o sinal de término do episódio (`done`);
+  - informações adicionais para análise (`info`).
+
+As ações são vetores discretos por ativo:
+
+- `0` = manter;
+- `1` = comprar (caso haja caixa);
+- `2` = vender (caso haja posição).
+
+A recompensa é baseada na variação do patrimônio líquido (caixa + posições), penalizada por custos de transação e prejuízos. O episódio termina ao alcançar o fim da série histórica.
+
+---
+
+### 6.4 Treinamento Inicial do Agente
+
+Com o ambiente e a rede definidos, o treinamento do agente ocorre por meio da interação repetida com o ambiente, ajustando os pesos da rede para melhorar suas decisões futuras. O processo segue os seguintes passos:
+
+1. **Inicialização do Replay Buffer** com capacidade para 10.000 transições;
+2. **Execução de múltiplos episódios**, onde:
+   - O agente observa o estado atual;
+   - Escolhe uma ação pela política $\epsilon$-greedy;
+   - Executa a ação, obtém a recompensa e o novo estado;
+   - Armazena a transição no buffer;
+   - Amostra minibatches aleatórios para treinar a rede;
+3. **Atualização periódica da target network** a cada $C$ iterações;
+4. **Monitoramento por validação** para evitar overfitting e acompanhar métricas de performance.
+
+O valor de $\epsilon$ inicia alto (ex: 1.0) e decresce progressivamente até um valor mínimo (ex: 0.1), permitindo ao agente alternar entre **exploração** (tomar decisões aleatórias para descobrir novas possibilidades) e **exploração do conhecimento aprendido** (agir com base na política já treinada).
+
+O treinamento será conduzido por 200 episódios, com registro das seguintes métricas:
+
+- Lucro acumulado;
+- Sharpe Ratio;
+- Drawdown máximo;
+- Acurácia dos sinais (hit ratio em 1, 3 e 5 dias).
+
+Os melhores modelos serão salvos para posterior avaliação em ambiente de teste.
+
+
+---
+
 
 ## 7. Avaliação e Otimização do Agente
 
