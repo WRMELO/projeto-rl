@@ -465,10 +465,104 @@ Portanto, mesmo que o ambiente seja sequencial por natureza, o uso do Replay Buf
 
 ## 7. Avaliação e Otimização do Agente
 
-* 7.1 Simulação do Desempenho do Agente
-* 7.2 Avaliação usando Métricas Financeiras (lucro, Sharpe Ratio)
-* 7.3 Análise de Resultados
-* 7.4 Ajustes e Otimização do Modelo
+### 7.1 Simulação do Desempenho do Agente
+
+Com o agente treinado ao longo de 300 episódios utilizando a técnica de Deep Q-Network (DQN), procedeu-se à avaliação de sua política em dados até então não vistos — mais especificamente, o conjunto de validação correspondente aos 15% centrais da série temporal total. Esta etapa foi conduzida com ε = 0.0, ou seja, **o agente atuou exclusivamente com base na política aprendida, sem qualquer exploração aleatória**.
+
+O ambiente foi reinicializado com os dados de validação, mantendo as mesmas condições iniciais da carteira: **R$ 100.000,00 em caixa e nenhuma posição comprada**. A simulação percorreu diariamente o vetor de validação, permitindo ao agente decidir entre manter, comprar ou vender em cada um dos três ativos: VALE3, PETR4 e BRFS3.
+
+Durante essa simulação, a cada passo, registrou-se o valor total da carteira (caixa + valor das posições a preço de mercado), compondo a série patrimonial do agente. Essa curva de valor acumulado foi usada como base para o cálculo das métricas financeiras descritas a seguir.
+
+---
+
+### 7.2 Avaliação usando Métricas Financeiras
+
+A avaliação da performance do agente no conjunto de validação foi conduzida com base nas três métricas previamente definidas na seção 2.4:
+
+- **Lucro Total**
+- **Índice de Sharpe**
+- **Máximo Drawdown**
+
+Os resultados observados foram os seguintes:
+
+- 📈 **Lucro Total:** R$ 6,78  
+- 📊 **Índice de Sharpe:** 0,06  
+- 📉 **Máximo Drawdown:** R$ 5,33 (0,01%)
+
+**Lucro Total:**  
+Representa a diferença absoluta entre o valor final e inicial da carteira ao longo da simulação (~183 dias úteis). Com um valor inicial de R$ 100.000,00, o agente terminou o período com R$ 100.006,78. Esse resultado indica que o agente **preservou o capital**, mas **não gerou retorno relevante** em termos absolutos (0,0068% no período completo).
+
+**Índice de Sharpe:**  
+Calculado como a média dos retornos diários da carteira dividida pelo seu desvio padrão, considerando taxa livre de risco nula. O valor de 0,06 evidencia que o **retorno médio foi muito próximo de zero em relação ao risco** assumido, o que caracteriza uma política neutra em termos de performance ajustada à volatilidade.
+
+**Máximo Drawdown:**  
+Foi medido como a maior perda acumulada entre um pico e o fundo subsequente da curva patrimonial. O valor observado de R$ 5,33 — equivalente a 0,01% — sugere que **o agente operou de maneira extremamente conservadora**, evitando grandes flutuações negativas, mas também sem assumir posições que maximizassem retorno.
+
+---
+
+### 7.3 Análise de Resultados
+
+A análise combinada das métricas e da curva de evolução do patrimônio revela que, apesar de estruturalmente estável, **a política aprendida pelo agente se mostrou excessivamente passiva**. Em termos práticos, o agente adotou um comportamento semelhante ao de manter caixa, realizando poucas operações com efeito marginal sobre o valor da carteira.
+
+Isso pode ter sido reflexo de vários fatores interligados:
+
+1. **Função de recompensa muito conservadora**, que premia variações positivas mas não incentiva suficientemente a tomada de risco controlado;
+2. **Espaço de ação restrito**, com apenas uma unidade transacionável por ativo e sem gestão de quantidade;
+3. **Ausência de penalizações por inatividade**, o que permite que o agente "aprenda" que não fazer nada pode ser suficiente para evitar prejuízo — mesmo que à custa de oportunidades de ganho;
+4. **Tempo de treinamento ainda limitado**, o que pode restringir a capacidade de generalização e descoberta de padrões mais sofisticados.
+
+Apesar disso, o resultado não é desprezível: o agente conseguiu preservar o capital de forma consistente, com drawdowns mínimos e sem colapsos de performance. Isso demonstra que a estrutura geral do ambiente de simulação, a arquitetura do DQN e a estratégia de treinamento adotadas são viáveis — embora ainda insuficientes para gerar uma política financeiramente interessante.
+
+Portanto, conclui-se que o agente está operando dentro de um **padrão técnico aceitável**, mas requer otimizações específicas em seus mecanismos de decisão e aprendizado para evoluir de uma política neutra para uma política efetivamente lucrativa.
+
+As direções para esse aprimoramento serão discutidas na seção seguinte (7.4).
+
+### 7.4 Ajustes e Otimização do Modelo
+
+Diante dos resultados observados na seção anterior — especialmente a neutralidade da política aprendida pelo agente — torna-se evidente a necessidade de realizar intervenções estruturadas com o objetivo de aprimorar o desempenho do modelo de Reinforcement Learning. A seguir, são propostas otimizações agrupadas em três dimensões: ambiente, arquitetura do agente e estratégia de aprendizado.
+
+---
+
+**1. Ajustes no Ambiente de Simulação**
+
+* **Introdução de penalidade por inatividade:**  
+Atualmente, o agente pode permanecer inerte ao longo de todo o episódio e ainda preservar o capital, o que não o incentiva a buscar oportunidades de ganho. Recomenda-se introduzir uma **penalização leve por manutenção prolongada de posição nula**, estimulando o agente a tomar decisões estratégicas ao invés de se omitir.
+
+* **Inclusão de custos de transação variáveis:**  
+Embora o modelo suporte penalização por operação, na versão atual ela ainda não foi implementada. A introdução de custos de transação proporcionais ao valor da operação pode simular o impacto real de corretagem, spread e slippage, incentivando o agente a otimizar o volume e o momento das operações.
+
+* **Aumento do espaço de ação com múltiplas unidades:**  
+Atualmente o agente só pode comprar ou vender uma unidade de cada ativo. A ampliação para múltiplos níveis (ex.: comprar 1, 2 ou 3 unidades) ou a introdução de proporções pode torná-lo mais realista e aumentar a complexidade estratégica da política aprendida.
+
+---
+
+**2. Otimização da Rede Neural e da Função de Recompensa**
+
+* **Refinamento da função de recompensa:**  
+A recompensa atual mede a variação absoluta do valor da carteira. Sugere-se testar abordagens que incorporem métricas ajustadas ao risco, como **retorno percentual** ou até **incrementos no Sharpe Ratio**, como proxy da qualidade da decisão, promovendo maior alinhamento com o objetivo financeiro final.
+
+* **Adição de dropout ou batch normalization:**  
+Embora a rede atual seja estável, sua capacidade de generalização pode ser aumentada com a inclusão de mecanismos como **dropout** (para evitar overfitting) ou **batch normalization** (para estabilizar os gradientes). Isso pode permitir o uso de redes ligeiramente mais profundas sem comprometer a estabilidade.
+
+* **Adoção de loss functions alternativas:**  
+O uso de **Huber Loss** em lugar do MSE pode tornar o aprendizado mais robusto a outliers e flutuações abruptas nos retornos diários.
+
+---
+
+**3. Estratégias de Aprendizado e Treinamento**
+
+* **Aumento do número de episódios de treinamento:**  
+O agente foi treinado por 300 episódios, o que é adequado para um primeiro experimento, mas ainda modesto para uma tarefa com grande espaço de estados e ações. Recomenda-se expandir para 1.000 episódios ou mais, com monitoramento contínuo das métricas de desempenho.
+
+* **Política de decaimento de ε mais lenta e customizada:**  
+O decaimento exponencial de ε de 1.0 para 0.1 ocorreu de forma relativamente rápida, limitando a fase de exploração. Uma abordagem de decaimento **linear ou baseada em patamares** (ex.: manter ε alto nas primeiras 100 interações) pode favorecer uma política mais informada antes da explotação.
+
+* **Treinamento contínuo com avaliação intercalada:**  
+Dividir o treinamento em ciclos e intercalar rodadas de avaliação com reinício do ambiente permite identificar com mais clareza pontos de inflexão no aprendizado e evita que o modelo “esqueça” comportamentos úteis por overtraining.
+
+---
+
+Com esses ajustes, espera-se que o agente evolua de uma postura neutra e conservadora para uma política mais sofisticada, responsiva ao mercado e efetivamente lucrativa. Essas intervenções também contribuem para transformar o MVP atual em um sistema base mais realista, capaz de incorporar futuras expansões — como múltiplos ativos, indicadores técnicos avançados ou o uso de técnicas Actor-Critic mais robustas.
 
 ## 8. Resultados e Discussão
 
