@@ -428,6 +428,38 @@ O treinamento será conduzido por 200 episódios, com registro das seguintes mé
 Os melhores modelos serão salvos para posterior avaliação em ambiente de teste.
 
 
+5. **Um comentário importante:** Por que Utilizar Replay Buffer com Dados Sequenciais?
+
+Embora os dados de mercado sejam naturalmente sequenciais — ou seja, cada dia depende do anterior — o uso do **Replay Buffer** no treinamento do agente DQN é **fundamental para garantir a estabilidade e eficiência do aprendizado**.
+
+### O Problema da Correlação Temporal
+
+Se treinássemos o agente diretamente com sequências cronológicas (ex: dias consecutivos: t, t+1, t+2...), o modelo sofreria com:
+
+- **Overfitting local**: aprendizado baseado apenas em padrões recentes, sem capacidade de generalização;
+- **Instabilidade na otimização**: mudanças abruptas de gradiente, pois os dados são altamente autocorrelacionados;
+- **Baixa diversidade nos exemplos**: o agente teria poucas situações distintas para comparar e aprender.
+
+###  A Solução: Replay Buffer
+
+O **Replay Buffer** resolve esse problema ao permitir que a rede aprenda com **mini-batches aleatórios de experiências passadas**, quebrando a sequência e promovendo generalização.
+
+- As experiências são **coletadas em ordem temporal real**, respeitando a sequência do ambiente;
+- Mas são **usadas de forma embaralhada durante o treino**, o que reduz a correlação entre amostras.
+
+### Analogia Real
+
+Imagine um trader experiente que, ao tomar uma decisão hoje, **lembra de diversos eventos anteriores no mercado**, mesmo que tenham ocorrido meses atrás.  
+O Replay Buffer simula essa capacidade: o agente **aprende com base em uma memória diversificada de situações**, não apenas no que acabou de acontecer.
+
+### Benefícios
+
+- Reduz variância nos gradientes e melhora a estabilidade do DQN;
+- Permite revisitar experiências raras ou valiosas no treinamento;
+- Promove maior robustez da política aprendida frente a novos dados.
+
+Portanto, mesmo que o ambiente seja sequencial por natureza, o uso do Replay Buffer **é não só compatível, mas essencial** para um aprendizado mais estável e eficaz em Reinforcement Learning.
+
 ---
 
 
